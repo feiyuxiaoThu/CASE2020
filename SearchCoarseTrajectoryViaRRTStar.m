@@ -230,6 +230,7 @@ if (abs(avg_velocity_lat / avg_velocity_long) > 0.5)
 end
 
 global environment_
+
 num_samples = round(abs(b(3) - a(3)) / 0.1) + 2;
 sline = linspace(a(1), b(1), num_samples);
 lline = linspace(a(2), b(2), num_samples);

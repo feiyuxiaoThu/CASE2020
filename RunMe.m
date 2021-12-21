@@ -11,6 +11,10 @@
 % ==============================================================================
 clear all; close all; clc;
 % % Parametric Settings
+global AA_global u_s_global l_s_global Aeq_global beq_global
+global Q q
+global A_qp b_qp
+global Boxes_bound
 global param_
 % Geometric size of the ego vehicle and the surrouding social vehicles (assumed to be identical)
 param_.vehicle_wheelbase = 2.8;
@@ -23,7 +27,7 @@ param_.vehicle_length = param_.vehicle_wheelbase + ...
 param_.vehicle_v_max_long = 20.0;
 param_.vehicle_v_suggested_long = 15.0;
 % RRT and QP related params
-param_.tf = 8.0;
+param_.tf = 6.0;
 param_.Nmax_iter = 200;
 param_.s0 = 0;
 param_.l0 = 1.75;
@@ -44,7 +48,7 @@ param_.weight_for_drastic_long_vel_change = 10;
 param_.weight_for_drastic_lat_vel_change = 20;
 param_.weight_for_biased_long = 1;
 param_.weight_for_biased_lat = 1;
-param_.Nfe = 100;
+param_.Nfe = 61;%100;
 
 % % Randomly generate environmental obstacles
 global environment_
@@ -55,9 +59,9 @@ environment_.road_right_barrier = 0;
 environment_.obstacles = GenerateObstacles();
 
 % % Coarse trajectory planning via spatio-temporal RRT*
-global coarse_trajectory precise_trajectory
+global coarse_trajectory precise_trajectory trajectory0
 coarse_trajectory = SearchCoarseTrajectoryViaRRTStar();
 precise_trajectory = OptimizeTrajectory(coarse_trajectory);
 
 % % Produce Results
-DynamicPlot();
+%DynamicPlot();

@@ -1,5 +1,5 @@
 function trajectory = OptimizeTrajectory(path)
-global terminal_moment param_
+global terminal_moment param_ trajectory0
 terminal_moment = path(end, 3);
 trajectory0 = Resample3DPath(path);
 
@@ -15,28 +15,107 @@ delete('NFE0');
 fid = fopen('NFE0', 'w');
 fprintf(fid,'1 %g \r\n', param_.Nfe);
 fclose(fid);
+global Boxes_bound
+Boxes_bound = SpecifyBoxRegionsForWaypoints(trajectory0);
 
-SpecifyBoxRegionsForWaypoints(trajectory0);
+%trajectory = trajectory0;
+%trajectory = QP_matlab(trajectory0,Boxes_bound);
 
-!ampl rr.run
-load x.txt
-load y.txt
-nfe = length(x);
-index = round(linspace(1, nfe, length(trajectory0)));
-trajectory(:,1) = x(index);
-trajectory(:,2) = y(index);
-trajectory(:,3) = linspace(0, terminal_moment, length(trajectory0));
+%% QP problems
+% contraints
+global AA_global u_s_global l_s_global Aeq_global beq_global
+
+[AA_global,u_s_global,l_s_global,Aeq_global,beq_global] = QP_matlab(trajectory0,Boxes_bound);
+
+% weight matrix
+
+
+sizen = param_.Nfe; % both l and s
+global Q q
+Q = eye(6*sizen);
+q = zeros(6*sizen,1);
+
+for i = sizen+1:2*sizen
+    Q(i,i) = 2*param_.weight_for_drastic_lat_vel_change; % 
 end
 
-function SpecifyBoxRegionsForWaypoints(trajectory0)
+for i = 2*sizen+1:3*sizen
+    Q(i,i) = 2*param_.weight_for_collision_risks;
+end
+
+for i = 4*sizen+1:5*sizen
+    Q(i,i) =  2*param_.weight_for_drastic_long_vel_change;
+end
+
+for i = 5*sizen+1:6*sizen
+    Q(i,i) = 2*param_.weight_for_collision_risks;
+end
+
+for i = 1:sizen
+    q(i) = -2*trajectory0(i,1);
+end
+
+for i = 3*sizen+1:4*sizen
+    q(i) = -2*trajectory0(i-3*sizen,2);
+end
+
+for i = 4*sizen+1:5*sizen
+    q(i) = -2*param_.vehicle_v_suggested_long*param_.weight_inside_exp;
+end
+
+%Q = sparse(Q);
+
+global A_qp b_qp
+A_qp = cat(1,AA_global,-AA_global);
+b_qp = cat(1,u_s_global,-l_s_global);
+
+%A_qp = sparse(A_qp);
+%Aeq_global = sparse(Aeq_global);
+
+options = qpip('defaults');
+%trajectory = quadprog(Q,q,A_qp,b_qp,Aeq_global,beq_global);
+[trajectory0,state] = qpip(Q,q,A_qp,b_qp,Aeq_global,beq_global,options);
+
+x_all = trajectory0.x;
+trajectory = zeros(sizen,3);
+
+if state == 1
+   fprintf("qp ok");
+else
+    fprintf('qp fail');
+end
+
+
+for i = 1:sizen
+    trajectory(i,1) = x_all(3*sizen+i);
+    trajectory(i,2) = x_all(i);
+    trajectory(i,3) = (i-1)*param_.tf/(sizen-1);
+end
+%!ampl rr.run
+%load x.txt
+%load y.txt
+%nfe = length(x);
+%index = round(linspace(1, nfe, length(trajectory0)));
+%trajectory(:,1) = x(index);
+%trajectory(:,2) = y(index);
+%trajectory(:,3) = linspace(0, terminal_moment, length(trajectory0));
+end
+
+function Boxes_mat = SpecifyBoxRegionsForWaypoints(trajectory0)
 delete('Boxes');
 fid = fopen('Boxes', 'w');
+Boxes_mat = zeros(4,length(trajectory0));
 for ii = 1 : length(trajectory0)
     [x_min, x_max, y_min, y_max] = GetObstacleBoundsAtTime(trajectory0(ii,1), trajectory0(ii,2), trajectory0(ii,3));
     fprintf(fid,'%g 1 %f \r\n', ii, x_min);
     fprintf(fid,'%g 2 %f \r\n', ii, x_max);
     fprintf(fid,'%g 3 %f \r\n', ii, y_min);
     fprintf(fid,'%g 4 %f \r\n', ii, y_max);
+    Boxes_mat(1,ii) = x_min;
+    Boxes_mat(2,ii) = x_max;
+    Boxes_mat(3,ii) = y_min;
+    Boxes_mat(4,ii) = y_max;
+    
 end
 fclose(fid);
 end
@@ -170,3 +249,6 @@ else
     val = 1;
 end
 end
+
+
+
